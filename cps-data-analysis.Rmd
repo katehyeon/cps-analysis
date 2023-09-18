@@ -1,0 +1,206 @@
+---
+title: "CPS Data Analysis"
+author: "Kate Hyeon"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    df_print: paged
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+# Load and inspect CPS data
+
+```{r}
+cps <- read.csv("cps_june_20-21.csv")
+
+cps <- na.omit(cps)
+
+summary(cps$age) 
+summary(cps$sex) 
+summary(cps$race) 
+summary(cps$college)
+```
+
+-The oldest person in our dataset is `r max(cps$age)` years old.
+
+-The sex column is a categorical binary variable, and there are more `r max(cps$sex)` than `r min(cps$sex)`.
+
+-The race column is a categorical variable. The most common race in this data set is `r max(cps$race)` and the least common race in this data set `r min(cps$race)`.
+
+-The college column is a categorical variable. More people had `r max(cps$college)` and the less people had `r min(cps$college)`.
+
+```{r results='hide'}
+mutate(cps, sex.fac = as.factor(sex))
+```
+
+```{r}
+cps.temp1 <- cps %>%
+  mutate(sex.fac = as.factor(sex),
+         race.fac = as.factor(race),
+         college.fac = as.factor(college)) %>%
+  select(-serial, -ind)
+
+head(cps.temp1, n = 5) %>%
+  select(sex.fac, race.fac, college.fac, earnweek) %>%
+  knitr::kable()
+```
+
+```{r}
+levels(cps.temp1$sex.fac)
+```
+
+```{r}
+levels(cps.temp1$race.fac)
+```
+
+```{r}
+levels(cps.temp1$college.fac)
+```
+
+-The as.factor() function allocated levels to the categorical variables, in the order that is ascending from left to right. From the level() function, we can see the categories in ascending order. In the sex category, there are more males than females. In the race category, there are generally more White people than Black, Asian, and American-Indian people. In the college degree category, there are more people with no college degree than there are those with a college degree.
+
+```{r}
+cps_2020 <- cps.temp1 %>%
+filter(year == 2020)
+
+head(cps_2020, n = 5) %>%
+  select(sex.fac, race.fac, college.fac, earnweek) %>%
+  knitr::kable()
+```
+
+```{r}
+rm(cps.temp1)
+```
+
+\medspace
+
+# Descriptive Statistics
+
+```{r}
+str(cps_2020)
+```
+
+-The unit of observation is person.
+
+```{r}
+summarise(cps_2020, n_distinct(personid))
+summarise(cps_2020, n_distinct(hhid))
+```
+
+-The number of individuals observed is `r summarise(cps_2020, n_distinct(personid))`.
+
+-The `r summarise(cps_2020, n_distinct(personid))` individuals are from `r summarise(cps_2020, n_distinct(hhid))` households.
+
+```{r}
+cps_2020 %>% 
+  summarise(avg_age = mean(age),
+            min_age = min(age),
+            max_age = max(age)) %>% 
+  knitr::kable()
+```
+
+-The average age of the individuals in the sample is `r round(mean(cps_2020$age), 1)` years old.
+
+-The youngest person is `r min(cps_2020$age)` years old.
+
+-The oldest person is `r max(cps_2020$age)` years old.
+
+\medspace
+
+# Earnings per week for different groups in June 2020
+
+```{r}
+max_earnings <- cps_2020 %>%
+  summarise(max_earnings = max(earnweek),)
+
+cps_2020 %>% arrange(desc(earnweek)) %>% 
+  head(n = 1) %>%
+  select(earnweek) %>%
+  knitr::kable()
+```
+
+-The top weekly earnings is `r max(cps_2020$earnweek)` dollars.
+
+```{r}
+cps_max_earn <- cps_2020 %>%
+  arrange(desc(earnweek))
+
+cps_max_earn %>% 
+  select(age, sex, race) %>% 
+  head(n=1) %>% 
+  knitr::kable()
+```
+
+-The age of the top weekly earner is 39, the sex is male, and the race is Asian only.
+
+```{r}
+cps_2020 %>% 
+  arrange(desc(earnweek)) %>% 
+  select(age, sex, race, earnweek) %>% 
+  head(n=10) %>% 
+  knitr::kable()
+```
+
+```{r}
+nrow(cps_2020[cps_2020$earnweek > 2000, ])
+```
+
+-`r nrow(cps_2020[cps_2020$earnweek > 2000, ])` individuals earned more than $2000 in weekly earnings.
+
+\medspace
+
+# Wage gaps between males and females
+
+```{r}
+cps_2020_male <- cps_2020 %>%
+  filter(sex.fac == "Male") %>%
+  arrange(desc(earnweek))
+
+cps_2020_female <- cps_2020 %>%
+  filter(sex.fac == "Female") %>%
+  arrange(desc(earnweek))
+
+cps_2020_male %>%
+  summarise(mean_earnings_male = mean(earnweek),
+            min_earnings_male = min(earnweek),
+            max_earnings_male = max(earnweek)) %>%
+  knitr::kable()
+```
+
+-For males, the average weekly earning is `r round(mean(cps_2020_male$earnweek), 2)`, the minimum weekly earning is `r round(min(cps_2020_male$earnweek), 2)`, and the maximum weekly earning is `r round(max(cps_2020_male$earnweek), 2)`.
+
+-For females, the average weekly earning is `r round(mean(cps_2020_female$earnweek), 2)`, the minimum weekly earning is `r round(min(cps_2020_female$earnweek), 2)`, and the maximum weekly earning is `r round(max(cps_2020_female$earnweek), 2)`.
+
+-The gender gap in weekly earnings is `r round(mean(cps_2020_male$earnweek) - mean(cps_2020_female$earnweek), 2)`.
+
+### Wage gaps between white males and Black females {-}
+
+```{r}
+cps_2020_wh_male <- cps_2020_male %>%
+  filter(race.fac == "White")
+cps_2020_bl_female <- cps_2020_female %>%
+  filter(race.fac == "Black/Negro")
+```
+
+-The gender gap in weekly earnings is $`r round(mean(cps_2020_wh_male$earnweek) - mean(cps_2020_bl_female$earnweek), 2)`.
+
+### Wage gap between college educated white males and college educated Black females {-}
+
+```{r}
+cps_2020_wh_male_college <- cps_2020_male %>%
+  filter(college.fac == "College degree" & race.fac == "White")
+cps_2020_bl_female_college <- cps_2020_female %>%
+  filter(college.fac == "College degree" & race.fac == "Black/Negro")
+```
+
+-The gender gap in weekly earnings is $`r round(mean(cps_2020_wh_male_college$earnweek) - mean(cps_2020_bl_female_college$earnweek), 2)`.
+
+\medspace
+
